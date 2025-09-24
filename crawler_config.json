@@ -1,0 +1,10 @@
+{
+  "max_depth": 3,
+  "max_urls": 50,
+  "rate_limit": 1.0,
+  "timeout": 15,
+  "user_agent": "Enhanced-Crawler/1.0 (+https://example.com/bot)",
+  "db_path": "crawler_data.db",
+  "respect_robots": true,
+  "max_concurrent": 5
+}

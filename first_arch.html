@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>First Architecture Animation</title>
+    <style>
+        body {
+            background: #111;
+            color: #eee;
+            font-family: sans-serif;
+            text-align: center;
+        }
+
+        canvas {
+            background: #222;
+            display: block;
+            margin: 20px auto;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Dynamic Data Flow Architecture</h2>
+    <canvas id="flow" width="900" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById("flow");
+        const ctx = canvas.getContext("2d");
+
+        // Define nodes
+        const nodes = {
+            client: { x: 150, y: 200, label: "Client" },
+            server: { x: 450, y: 200, label: "Server" },
+            db: { x: 750, y: 200, label: "Database" }
+        };
+
+        // Animation state
+        let t = 0;
+
+        function drawNode(node) {
+            ctx.fillStyle = "#0ff";
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 40, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#000";
+            ctx.font = "14px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(node.label, node.x, node.y + 5);
+        }
+
+        function drawArrow(from, to) {
+            ctx.strokeStyle = "#0ff";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y);
+            ctx.lineTo(to.x, to.y);
+            ctx.stroke();
+            // Arrowhead
+            const angle = Math.atan2(to.y - from.y, to.x - from.x);
+            ctx.beginPath();
+            ctx.moveTo(to.x, to.y);
+            ctx.lineTo(to.x - 10 * Math.cos(angle - Math.PI / 6),
+                to.y - 10 * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(to.x - 10 * Math.cos(angle + Math.PI / 6),
+                to.y - 10 * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = "#0ff";
+            ctx.fill();
+        }
+
+        function drawPacket(from, to, progress, color = "#ff0") {
+            const x = from.x + (to.x - from.x) * progress;
+            const y = from.y + (to.y - from.y) * progress;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 10, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw nodes
+            drawNode(nodes.client);
+            drawNode(nodes.server);
+            drawNode(nodes.db);
+
+            // Draw arrows
+            drawArrow(nodes.client, nodes.server);
+            drawArrow(nodes.server, nodes.db);
+
+            // Animate packet
+            let progress = (t % 200) / 200; // 0 → 1
+            if (progress < 0.5) {
+                drawPacket(nodes.client, nodes.server, progress * 2, "#ff0");
+            } else {
+                drawPacket(nodes.server, nodes.db, (progress - 0.5) * 2, "#f80");
+            }
+
+            t++;
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>

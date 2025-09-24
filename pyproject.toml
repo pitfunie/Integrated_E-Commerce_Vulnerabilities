@@ -1,0 +1,20 @@
+[project]
+name = "my-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bs4>=0.0.2",
+    "fastapi",
+    "matplotlib>=3.10.5",
+    "metadata",
+    "networkx>=3.5",
+    "numpy>=2.3.1",
+    "pandas>=2.3.0",
+    "pyspark",
+    "redis>=6.4.0",
+    "requests>=2.32.4",
+    "search-engine>=0.0.6",
+    "urllib3>=2.5.0",
+]

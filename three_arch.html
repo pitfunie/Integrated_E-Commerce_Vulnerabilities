@@ -1,0 +1,58 @@
+<div class="viz">
+    <button onclick="startFlow()">▶ Play Workflow</button>
+    <svg id="workflow" viewBox="0 0 1100 360">
+        <!-- Nodes -->
+        <circle id="client" cx="70" cy="90" r="20" fill="#1ee3cf"></circle>
+        <text x="100" y="95" class="node-title">Clients</text>
+        <circle id="dns" cx="70" cy="150" r="20" fill="#1ee3cf"></circle>
+        <text x="100" y="155" class="node-title">DNS</text>
+        <circle id="r53" cx="70" cy="210" r="20" fill="#1ee3cf"></circle>
+        <text x="100" y="215" class="node-title">Route53</text>
+        <circle id="albA" cx="430" cy="90" r="20" fill="#1ee3cf"></circle>
+        <text x="460" y="95" class="node-title">ALB A</text>
+        <circle id="dbA" cx="640" cy="270" r="20" fill="#1ee3cf"></circle>
+        <text x="670" y="275" class="node-title">DB A</text>
+
+        <!-- Flow lines -->
+        <line id="flow1" x1="70" y1="90" x2="70" y2="150" stroke="#ff9f1c" stroke-width="2" visibility="hidden" />
+        <line id="flow2" x1="70" y1="150" x2="70" y2="210" stroke="#ff9f1c" stroke-width="2" visibility="hidden" />
+        <line id="flow3" x1="70" y1="210" x2="430" y2="90" stroke="#ff9f1c" stroke-width="2" visibility="hidden" />
+        <line id="flow4" x1="430" y1="90" x2="640" y2="270" stroke="#ff9f1c" stroke-width="2" visibility="hidden" />
+
+        <!-- Moving packet -->
+        <circle id="packet" r="6" fill="#ff0" visibility="hidden" />
+    </svg>
+</div>
+
+<script>
+    function animateLine(lineId, from, to, callback) {
+        const packet = document.getElementById("packet");
+        const line = document.getElementById(lineId);
+        line.setAttribute("visibility", "visible");
+        packet.setAttribute("visibility", "visible");
+
+        let progress = 0;
+        function step() {
+            progress += 0.01;
+            if (progress > 1) { callback(); return; }
+            const x = from.x + (to.x - from.x) * progress;
+            const y = from.y + (to.y - from.y) * progress;
+            packet.setAttribute("cx", x);
+            packet.setAttribute("cy", y);
+            requestAnimationFrame(step);
+        }
+        step();
+    }
+
+    function startFlow() {
+        animateLine("flow1", { x: 70, y: 90 }, { x: 70, y: 150 }, () => {
+            animateLine("flow2", { x: 70, y: 150 }, { x: 70, y: 210 }, () => {
+                animateLine("flow3", { x: 70, y: 210 }, { x: 430, y: 90 }, () => {
+                    animateLine("flow4", { x: 430, y: 90 }, { x: 640, y: 270 }, () => {
+                        document.getElementById("packet").setAttribute("visibility", "hidden");
+                    });
+                });
+            });
+        });
+    }
+</script>p

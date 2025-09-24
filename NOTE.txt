@@ -1,0 +1,181 @@
+```
+┌──────────────────────────── Global Edge ────────────────────────────┐
+│ Route 53 DNS  →  CloudFront (WAF, Lambda@Edge, CDN)                 │
+└─────────────────────────────────┬───────────────────────────────────┘
+                                  │
+                        Internet-facing traffic
+                                  │
+                    ┌─────────────▼─────────────---------┐
+                    │  Prod Account (AWS Control Tower)  │
+                    │  VPC (3 AZs)                       │
+                    ├───────────────┬───────────────────-┤
+                    │ Public Subnets│ Private Subnets    │
+                    │               │                    │
+┌───────────────┐   │    ┌──────────▼──────────┐         │       ┌───────────────────────┐
+│ Marketing UIs │───┼──▶ │ ALB → Dispatcher ASG│───────--┼──────▶│  AEM Publish ASG      │
+│ Web/Mobile/API│   │    │ (Apache + Dispatcher)         │       │  (Horizontally scaled)|
+└───────────────┘   │    └──────────────────────┘        │       └───────────────────────┘
+                    │                                    │
+                    │                                    │       ┌───────────────────────--┐
+                    │                         ┌──────────┼──────▶│  AEM Author (Primary)   │
+                    │                         │          │       │  + Standby (AZ failover)|
+                    │                         │          │       └───────────────────────--┘
+                    │                         │          │
+                    │                         │          │
+                    │    ┌────────────────────▼──────────▼──────────────────────────┐
+                    │    │      Data + Integration Services                         │
+                    │    │  - S3 (Binary DataStore, assets, backups; CRR)           │
+                    │    │  - EFS (optional: shared dispatcher cache)               │
+                    │    │  - Secrets Manager / SSM Parameter Store                 │
+                    │    │  - KMS (CMKs for S3, EBS, Secrets)                       │
+                    │    │  - EventBridge & Lambda (workflows, ingest, webhooks)    │
+                    │    │  - OpenSearch / CloudWatch / X-Ray (logs, metrics, traces)│
+                    │    │  - Optional: RDS/Aurora for forms submissions/aux data   │
+                    │    └──────────────────────────────────────────────────────────┘
+                    │
+                    └─────────────────────── VPC Endpoints/NAT/Transit GW ───────────────
+
+┌────────────────────── Shared Services Account ──────────────────────┐
+│ AWS SSO/IAM Identity Center, Organizations/SCPs, KMS, GuardDuty,    │
+│ Security Hub, Config, CloudTrail (org trails), Centralized Logging  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────── Dev / Stage Accounts (mirrors) ───────────────┐
+│ Same VPC pattern, smaller ASGs, feature flags, synthetic traffic    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+Core components and roles
+
+   
+    Edge and delivery:
+
+        CloudFront CDN: Global cache, low‑latency delivery, signed URLs, TLS.
+
+        WAF + Lambda@Edge: Security headers, bot control, geo/rate rules, A/B header mutation.
+
+   
+   
+    Ingress and cache:
+
+        ALB: Routes to dispatcher fleet; health checks by path.
+
+        Dispatcher ASG: Apache HTTPD + AEM Dispatcher module; cache and filter rules; blue/green-able.
+
+   
+   
+    Application tiers:
+
+        AEM Publish (ASG): Stateless scale‑out; immutable AMIs; zero‑downtime rolling/blue‑green.
+
+        AEM Author (HA): TarMK primary with standby in another AZ; or Document Node Store with self‑managed MongoDB when collaboration/write throughput requires it.
+
+    
+    
+    Data and assets:
+
+        S3 (Binary DataStore): Durable storage for assets and binaries; cross‑region replication for DR.
+
+        EFS (optional): Shared dispatcher cache across nodes when needed; evaluate performance trade‑offs.
+
+        RDS/Aurora (optional): Forms submissions or auxiliary app data (not the AEM repository).
+
+        Backups: Versioned S3 buckets, EBS snapshots, AMI baking via Packer.
+
+    
+    Security and governance:
+
+        AWS Organizations/Control Tower: Multi‑account guardrails (SCPs), baseline controls.
+
+        IAM Identity Center (SSO): Least‑privilege, break‑glass roles, JIT access.
+
+        KMS: CMKs for S3, EBS, Secrets Manager; key separation by environment.
+
+        Network: Private subnets for AEM; security groups, NACLs; VPC endpoints for S3/STS/Logs.
+
+        Threat visibility: GuardDuty, Security Hub, AWS WAF logs to centralized OpenSearch.
+
+    
+    Observability:
+
+        CloudWatch metrics/logs/alarms: Synthetics for key pages; canaries for cache hit ratio.
+
+        Distributed tracing: X-Ray for edge-to-app flows; log correlation IDs across tiers.
+
+        Dashboards: Business SLOs (p95 latency, cache hit %, publish error rate).
+
+
+
+Availability and disaster recovery
+
+    
+    High availability:
+
+        Multi‑AZ: Publish ASG across 3 AZs; Author primary/standby split AZs.
+
+        Statelessness: Immutable images; config as code; fast node replacement.
+
+    
+    Disaster recovery:
+
+        Cross‑region S3 replication: Assets and backups replicated.
+
+        Warm/cold standby: Infra templates staged in DR region; Route 53 failover policy.
+
+        RPO/RTO targets: RPO via S3 CRR + periodic repository snapshots; RTO via automated redeploy scripts.
+
+
+CI/CD and infrastructure as code
+
+    
+    Pipelines:
+
+        App pipeline: Git → Build (Maven/Gradle) → Unit/IT → AEM content packages → Security scan → Blue/Green to Publish → Controlled promote to Author.
+
+        Infra pipeline: Terraform/CloudFormation → Validate → Plan/Review → Apply per account (Dev/Stage/Prod).
+
+    
+    Golden artifacts:
+
+        Packer AMIs: AEM runtime, Dispatcher, hardened OS, CIS benchmarks.
+
+        Policy as code: OPA/Conftest/Checkov gates for guardrails before merge.
+
+
+
+AEM-specific choices you can defend
+
+    
+    Repository mode:
+
+        TarMK + S3 DataStore for most enterprises (simpler ops, strong perf).
+
+        MongoMK only when concurrent authoring/write throughput is high; run MongoDB on EC2/Atlas, not DocumentDB.
+
+    Dispatcher cache strategy:
+
+        Per-node local cache for max performance;
+
+        EFS-backed shared cache when you need instant cache coherence across nodes (accept some latency trade‑off).
+
+    Edge logic placement:
+
+        Lambda@Edge for security headers, redirects, AB tests;
+
+        Dispatcher rules for URL filters, cache invalidation, and SSR nuances.
+
+
+Whiteboard talk track (60–90 seconds)
+
+    Business first: “We front everything with CloudFront + WAF to protect and accelerate global experiences.”
+
+    Ingress/cache: “ALB feeds a Dispatcher fleet for smart caching and request filtering.”
+
+    App tiers: “Publish scales horizontally; Author is HA with AZ failover. We keep nodes immutable.”
+
+    Data: “Assets and binaries live durably in S3 with CRR; repository snapshots are automated.”
+
+    Security/governance: “Control Tower guardrails, SSO, KMS encryption everywhere, private networking with VPC endpoints.”
+
+    Ops: “Terraform + Packer drive repeatability; blue/green releases give zero‑downtime deploys; CloudWatch SLOs tie to business outcomes.”
+
+If you want, I’ll tailor this to your interview: multi-account layout, SCP examples, and a 1‑slide motion storyboard you can present.
